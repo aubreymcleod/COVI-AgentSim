@@ -1,6 +1,9 @@
 # html files
 *.html
 
+# bodged setup files
+bodge_setup/dest/*
+
 # images and data files
 *.png
 *.gif

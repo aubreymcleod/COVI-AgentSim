@@ -15,7 +15,7 @@ commonmark==0.9.1
 configparser==5.0.1
 coverage==5.3
 cssselect2==0.4.1
-#  -e git+https://github.com/mila-iqia/COVI-ML@19986f7427a7a643eb05fb41e5ed4dd113362cd6#egg=ctt
+# -e git+https://github.com/mila-iqia/COVI-ML@19986f7427a7a643eb05fb41e5ed4dd113362cd6#egg=ctt
 cycler==0.10.0
 dataclasses==0.6
 decorator==4.4.2
