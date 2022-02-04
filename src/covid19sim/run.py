@@ -76,6 +76,7 @@ def _get_intervention_string(conf):
 
     raise ValueError(f"Unknown risk model:{risk_model}")
 
+
 @hydra.main(config_path="configs/simulation/config.yaml")
 def main(conf: DictConfig):
     """
@@ -247,6 +248,7 @@ def simulate(
         out_chunk_size (int, optional): size of chunks to write in logs. Defaults to None.
         seed (int, optional): [description]. Defaults to 0.
         conf (dict): yaml configuration of the experiment.
+        interactive_session (bool): a boolean flag telling the simulation to pause for user input (true), or to run as normal (false)
         logfile (str): filepath where the console output and final tracked metrics will be logged. Prints to the console only if None.
 
     Returns:
@@ -328,7 +330,6 @@ def simulate(
     env.run(until=env.ts_initial + simulation_days * SECONDS_PER_DAY)
 
     return city
-
 
 if __name__ == "__main__":
     main()
