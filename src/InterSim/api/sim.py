@@ -169,6 +169,7 @@ def update_sim():
 
 @sim.route('/teststep', methods=['get'])
 def test_step():
-    ts = gv.CurrentSim.env.ts_now+1
+    #ts = gv.CurrentSim.env.ts_now+1
+    ts = gv.CurrentSim.env.ts_now+3600
     gv.CurrentSim.step(ts)
     return Response('OK', status=200)
