@@ -15,22 +15,24 @@ class Schedule:
 
         # load schedule object
         self.schedule = RangeDict()
-        self.load_current_day()
+        self._load_full_schedule()
 
-    def load_current_day(self):
+    def _load_full_schedule(self):
         """
         pull the current day's schedule into our representation
         """
         # get current_state
+        # initial state
         current_state = self._current_activity.clone()
         start = current_state.start_time
         end = current_state.end_time
         self.schedule[(start, end)] = current_state
         # get the activities that are queued for every day except the first day.
-        for activity in self._agent.mobility_planner.schedule_for_day:
-            start = activity.start_time
-            end = activity.end_time
-            self.schedule[(start, end)] = activity
+        for day in self._agent.mobility_planner.full_schedule:
+            for activity in day:
+                start = activity.start_time
+                end = activity.end_time
+                self.schedule[(start, end)] = activity
 
     # =========================================
     # checks and balances on a given adjustment
@@ -83,6 +85,12 @@ class Schedule:
         return not self._is_current(activity) and self._in_future(activity) and not self._is_sleep(activity)
 
     # ====================================
+    # Remap Current Schedule
+    # ====================================
+    def _remap_delete_activity(self, activity):
+        if activity.start_time.day > self._current_time
+
+    # ====================================
     # activity editing API
     # ====================================
     def cancel_activity(self, timestamp):
@@ -111,6 +119,7 @@ class Schedule:
         if not self.can_edit(activity):
             return
 
+        previous_activity = self.schedule.get(activity.start_time - 1)
         next_activity = self.schedule.get(activity.end_time)
         # get activity,
         # get next activity
@@ -203,7 +212,7 @@ class RangeDict(collections.abc.MutableMapping):
         self.update(dict(*args, **kwargs))
 
     def __getitem__(self, key: numbers.Number or (numbers.Number, numbers.Number)):
-        # grab the nearest range. I this should be O(log n)
+        # grab the nearest range. I this should be O(log n) or O(1) depending on the key used
         if key is tuple and key in self._store:
             return self._store[key]
 
@@ -219,7 +228,10 @@ class RangeDict(collections.abc.MutableMapping):
         bisect.insort_left(self._BLUT, (key[1], key[0]))
         self._store[key] = value
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: numbers.Number or (numbers.Number, numbers.Number)):
+        # if we are given a tuple of an object to set, then grab the start time.
+        if key is tuple:
+            key = key[0]
         # again, time complexity O(n), the random access really hurts us here.
         i = _binary_key_search(self._FLUT, key)
         del self._store[self._FLUT[i]]
