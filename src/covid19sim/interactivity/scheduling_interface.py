@@ -69,7 +69,7 @@ class Schedule:
         return activity.name == 'sleep'
 
     # this is a check that should be made before any edit is applied
-    def _can_edit(self, activity):
+    def can_edit(self, activity):
         """
         Checks if an edit can be made to the activity based on my 3 constraints
         1. Edits must not be to the current simulation.
@@ -107,6 +107,15 @@ class Schedule:
         Returns:
             True on success, False on failure.
         """
+        activity = self.schedule.get(timestamp)
+        if not self.can_edit(activity):
+            return
+
+        next_activity = self.schedule.get(activity.end_time)
+        # get activity,
+        # get next activity
+        # if next activity is idle; remove this from queue, and extend into space.
+        # else; remove from queue, and insert new idle time.
         # todo delete activity if possible.
 
     def insert_activity(self, start_timestamp, activity_type, end_timestamp):
@@ -193,8 +202,11 @@ class RangeDict(collections.abc.MutableMapping):
         self._BLUT = []  # key (end, start); used purely to double check that the given addition is valid, inherent override rejection.
         self.update(dict(*args, **kwargs))
 
-    def __getitem__(self, key: numbers.Number):
+    def __getitem__(self, key: numbers.Number or (numbers.Number, numbers.Number)):
         # grab the nearest range. I this should be O(log n)
+        if key is tuple and key in self._store:
+            return self._store[key]
+
         i = _binary_key_search(self._FLUT, key)
         bounds = self._FLUT[i]
         # test that we are in range.
