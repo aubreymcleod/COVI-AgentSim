@@ -9,7 +9,7 @@ class Environment(BaseEnvironment, simpy.Environment):
     also mixing in the data layout specified at the C level by _native.BaseEnvironment.
     """
     
-    def __init__(self, initial_time=0):
+    def __init__(self, initial_time=0, interactive_flag=False):
         """
         Initialize a new, optimized Environment.
         
@@ -24,7 +24,8 @@ class Environment(BaseEnvironment, simpy.Environment):
             BaseEnvironment  .__init__(self, initial_time.timestamp())
             simpy.Environment.__init__(self, self.now)
             self.initial_timestamp = initial_time
-    
+        self.Interactive = interactive_flag
+
     @property
     def timestamp(self):
         """

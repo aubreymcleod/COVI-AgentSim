@@ -294,7 +294,8 @@ def simulate(
     logging.root.setLevel(getattr(logging, conf["LOGGING_LEVEL"].upper()))
 
     rng = np.random.RandomState(seed)
-    env = Env(start_time)
+    env = Env(start_time, True) # DEBUG: for development purposes
+    #env = Env(start_time, False)
     city_x_range = (0, 1000)
     city_y_range = (0, 1000)
     city = City(

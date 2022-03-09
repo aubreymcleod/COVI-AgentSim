@@ -14,10 +14,11 @@ class Schedule:
         self._current_activity = self._agent.mobility_planner.current_activity
 
         # load schedule object
-        self.schedule = RangeDict()
-        self._load_full_schedule()
+        self.full_schedule = RangeDict()
+        self.schedule_for_day = []
+        self.load_daily_schedule()
 
-    def _load_full_schedule(self):
+    def load_daily_schedule(self):
         """
         pull the current day's schedule into our representation
         """
@@ -26,13 +27,15 @@ class Schedule:
         current_state = self._current_activity.clone()
         start = current_state.start_time
         end = current_state.end_time
-        self.schedule[(start, end)] = current_state
+        try:
+            self.full_schedule[(start, end)] = current_state
+        except RangDictKeyException:
+            pass
         # get the activities that are queued for every day except the first day.
-        for day in self._agent.mobility_planner.full_schedule:
-            for activity in day:
-                start = activity.start_time
-                end = activity.end_time
-                self.schedule[(start, end)] = activity
+        for activity in day:
+            start = activity.start_time
+            end = activity.end_time
+            self.full_schedule[(start, end)] = activity
 
     # =========================================
     # checks and balances on a given adjustment
@@ -88,7 +91,42 @@ class Schedule:
     # Remap Current Schedule
     # ====================================
     def _remap_delete_activity(self, activity):
-        if activity.start_time.day > self._current_time
+        """
+        Scan through the backend queues and find the activity, replace it with idle time.
+        If there is idle time before, pull that overtop.
+        If there is idle time after, pull that overtop.
+        If there is idle time on both sides, extend the previous idle time to overlap the existing event.
+        Args:
+            activity: the activity that you want to delete
+
+        Returns:
+
+        """
+        difference = activity.start_time - self._current_time
+        activity_queue = []
+        # if the the event is on the same day as today, then check the current queue
+        if difference.days == 0:
+            if activity.start_time == self._current_activity.end_time and self._current_activity.name == 'idle':
+                self._agent.mobility_planner.schedule_for_day.remove(activity)
+                self._current_activity.end_time
+                return
+            else:
+                activity_queue = self._agent.mobility_planner.schedule_for_day
+
+        # if the event is on a future day, scan through the queues to find it.
+        else:
+            activity_queue = self._agent.mobility_planner.full_schedule.index(difference.days - 1)
+
+        # find activity in the queue
+        for index, a in enumerate(activity_queue):
+            if a == activity:
+                # case first entry in day
+                if index == 0 and len(activity_queue) == 1:
+
+                elif index == 0
+                # case last entry in day
+
+                # case in the middle
 
     # ====================================
     # activity editing API
