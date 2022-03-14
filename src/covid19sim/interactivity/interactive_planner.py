@@ -9,8 +9,6 @@ import datetime
 import numpy as np
 import warnings
 
-from copy import deepcopy
-
 # loot existing functionality
 from covid19sim.utils.mobility_planner import MobilityPlanner, ACTIVITIES, Activity
 
@@ -232,7 +230,7 @@ class InteractivePlanner(MobilityPlanner):
             for index, sleep in enumerate(self.sleep_schedule[self.schedule_day-1:]):
                 if last_sleep is None:
                     last_sleep = sleep
-                if sleep.start_time >= activities[0].start_time > last_sleep.start_time:
+                if last_sleep.start_time < activities[0].start_time <= sleep.start_time :
                     target_day = index
                     schedule = self.full_schedule[target_day]
 
