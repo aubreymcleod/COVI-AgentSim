@@ -2,14 +2,16 @@
 Acts as a secondary entry point, where a secondary entry point, where a separate library can control the simulation.
 """
 import datetime
+import hydra
 import logging
 import os
 import time
 import typing
+
 from pathlib import Path
+from omegaconf import DictConfig
 
 import numpy as np
-from omegaconf import DictConfig
 
 from covid19sim.locations.city import City
 from covid19sim.utils.env import Env
@@ -258,6 +260,8 @@ class ControlledSimulation:
         self.env.process(console_logger.run(self.env, city=self.city))
         self.end_time = self.env.ts_initial + simulation_days * SECONDS_PER_DAY
 
+    def auto_step(self, time: float):
+        self.step(self.env.now + time)
 
     def step(self, timestep):
         """
@@ -267,8 +271,17 @@ class ControlledSimulation:
             env: the simulation environment
             timestep: the timestep which this simulation will run until.
         """
-        # Run simulation until termination
-        self.env.run(until=timestep)
+        target = timestep
+        if target > self.end_time:
+            target = self.end_time
+
+        # introduced because we encountered a weird bug when stepping forward; causing nasty desync.
+        #while self.env.timestamp.timestamp() != target:
+        #    self.env.run(until=target)
+        self.env.run(until=target)
+
+        if self.env.now == self.end_time:
+            self.end_sim()
 
     def end_sim(self):
         # write the full configuration file along with git commit hash
