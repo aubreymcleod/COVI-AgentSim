@@ -1,11 +1,19 @@
 import hydra
 import json
+import os
 import sys
+
 import streamlit as st
 
+from contextlib import contextmanager
+from io import StringIO
 from omegaconf import DictConfig, OmegaConf
 from streamlit import cli as stcli
+from streamlit.script_run_context import SCRIPT_RUN_CONTEXT_ATTR_NAME
+from threading import current_thread
+
 from covid19sim.interactivity.controlled_run import ControlledSimulation
+from InterSim.components.visualizationEngine import visualizer
 
 timesteps = {"1 second": 1.0,
              "10 seconds": 10.0,
@@ -16,6 +24,7 @@ timesteps = {"1 second": 1.0,
              "12 hours": 43200.0,
              "24 hours": 86400.0}
 
+
 def get_sim(conf: DictConfig):
     sim = ControlledSimulation(conf)
     return sim
@@ -25,7 +34,45 @@ def get_config():
     with open("confcache.json", "r") as infile:
         return OmegaConf.create(json.load(infile))
 
+# =======
+# Console
+# =======
+@contextmanager
+def st_redirect(src, dst):
+    placeholder = st.empty()
+    output_func = getattr(placeholder, dst)
 
+    with StringIO() as buffer:
+        old_write = src.write
+
+        def new_write(b):
+            if getattr(current_thread(), SCRIPT_RUN_CONTEXT_ATTR_NAME, None):
+                st.session_state["log"] += b
+                buffer.write(b)
+                output_func(buffer.getvalue())
+            else:
+                old_write(b)
+
+        try:
+            src.write = new_write
+            yield
+        finally:
+            src.write = old_write
+
+
+@contextmanager
+def st_stdout(dst):
+    with st_redirect(sys.stdout, dst):
+        yield
+
+@contextmanager
+def st_stderr(dst):
+    with st_redirect(sys.stderr, dst):
+        yield
+
+# ===========
+# UI Elements
+# ===========
 def draw_sidebar():
     st.sidebar.write(f'Simulation date')
     time = st.sidebar.empty()
@@ -47,17 +94,24 @@ def main():
     st.title("Interactive Covi19sim")
 
     visualization_area = st.empty()
-    visualization_area.write(str(st.session_state['sim']) if 'sim' in st.session_state else None)
+    if 'renderer' in st.session_state:
+        st.session_state['renderer'].draw()
+        visualization_area.pyplot(st.session_state['renderer'].fig)
 
-    console_area = st.empty()
-    console_area.code("[CONSOLE OUTPUT HERE]")
+    if "log" not in st.session_state:
+        st.session_state["log"] = ""
 
-    if 'sim' not in st.session_state:
-        st.session_state['sim'] = get_sim(get_config())
-        visualization_area.write(str(st.session_state['sim']))
+    st.code(st.session_state["log"])
 
+    with st_stdout("code"):
+        if 'sim' not in st.session_state:
+            st.session_state['sim'] = get_sim(get_config())
+            if 'renderer' not in st.session_state:
+                st.session_state['renderer'] = visualizer(st.session_state['sim'])
+                visualization_area.pyplot(st.session_state['renderer'].fig)
 
-    draw_sidebar()
+        draw_sidebar()
+        #st.write(st.session_state["log"])
 
 
 @hydra.main(config_path="../covid19sim/configs/simulation/config.yaml")
