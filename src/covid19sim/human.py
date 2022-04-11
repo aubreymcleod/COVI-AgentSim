@@ -15,6 +15,7 @@ from covid19sim.utils.mobility_planner import MobilityPlanner
 from covid19sim.utils.utils import proba_to_risk_fn
 from covid19sim.locations.city import PersonalMailboxType
 from covid19sim.locations.hospital import Hospital, ICU
+from covid19sim.interactivity.interactive_planner import InteractivePlanner
 from collections import deque
 
 from covid19sim.utils.utils import calculate_average_infectiousness
@@ -206,7 +207,11 @@ class Human(BaseHuman):
         self.obs_hospitalized, self.obs_in_icu = None, None
         self.visits = Visits()  # used to help implement mobility
         self.last_date = defaultdict(lambda : self.env.initial_timestamp.date())  # used to track the last time this person did various things (like record smptoms)
-        self.mobility_planner = MobilityPlanner(self, self.env, self.conf)
+
+        if self.env.Interactive:
+            self.mobility_planner = InteractivePlanner(self, self.env, self.conf)
+        else:
+            self.mobility_planner = MobilityPlanner(self, self.env, self.conf)
 
         self.location_leaving_time = self.env.ts_initial + SECONDS_PER_HOUR
         self.location_start_time = self.env.ts_initial
