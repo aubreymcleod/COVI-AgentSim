@@ -1,8 +1,10 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import descartes
+import random as random
 from mpl_toolkits.axisartist.axislines import Subplot
 from shapely.geometry import Point, Polygon
+import plotly.express as px
 
 class visualizer:
     def __init__(self, sim):
@@ -18,90 +20,71 @@ class visualizer:
         self.workplace_ref = sim.city.workplaces
         self.senior_residence_ref = sim.city.senior_residences
         self.home_ref = [home for home in sim.city.households]
+        self.misc_ref = [misc for misc in sim.city.miscs]
 
         # people data
         self.humans = {human.name : human for human in sim.city.humans}
 
         # config
-        self.building_radius = 20.0
-        self.school_colour = "blue"
-        self.hospital_colour = "orange"
-        self.home_colour = "green"
-        self.park_colour = "yellow"
-        self.senior_residence_colour = "purple"
-        self.store_colour = "red"
-        self.workplace_colour = "pink"
-
-        self.person_radius = 5.0
-        self.person_colour = "turquoise"
-        self.child_colour = "aquamarine"
+        self.building_radius = 7.0
+        self.person_radius = 1.0
 
         #plot
-        self.fig = plt.figure(figsize=(15, 15))
-        self.ax = self.fig.add_subplot()
+        self.fig = None#go.Figure()#plt.figure(figsize=(15, 15))
+        #self.ax = self.fig.add_subplot()
 
         self.building_df = self._init_buildings()
-
         self.draw()
+        #self.draw()
         #self.ax.scatter(self.building_df.x, self.building_df.y, s=self.building_df.radius, c=self.building_df.colour)
-        """
-        self.school_layer = Subplot(self.fig, 111)
-        self.fig.add_subplot(self.school_layer)
 
-        self.hospital_layer = Subplot(self.fig, 111)
-        self.fig.add_subplot(self.hospital_layer)
-
-        self.park_layer = Subplot(self.fig, 111)
-        self.fig.add_subplot(self.park_layer)
-
-        self.store_layer = Subplot(self.fig, 111)
-        self.fig.add_subplot(self.store_layer)
-
-        self.work_layer = Subplot(self.fig, 111)
-        self.fig.add_subplot(self.work_layer)
-
-        self.senior_layer = Subplot(self.fig, 111)
-        self.fig.add_subplot(self.senior_layer)
-
-        self.home_layer = Subplot(self.fig, 111)
-        self.fig.add_subplot(self.home_layer)
-
-        #self.people_layer = self.fig.add_subplot()
-
-        #self.draw_people()
-        """
-
-    def _compile_building(self, building_arr, colour):
+    def _compile_building(self, building_arr, type):
         return pd.DataFrame({'x': [building.lon for building in building_arr],
                            'y': [building.lat for building in building_arr],
-                           'radius': self.building_radius,
-                           'colour': colour})
+                           'radius': [self.building_radius for building in building_arr],
+                           'name': [building.name for building in building_arr],
+                           'type': [type for building in building_arr]})
         #building_layer.scatter(df.x, df.y, s=self.building_radius, c=colour)
 
     def _init_buildings(self):
-        building_set = self._compile_building(self.school_ref, self.school_colour)
-        building_set = building_set.append(self._compile_building(self.hospital_ref, self.hospital_colour))
-        building_set = building_set.append(self._compile_building(self.park_ref, self.park_colour))
-        building_set = building_set.append(self._compile_building(self.store_ref, self.store_colour))
-        building_set = building_set.append(self._compile_building(self.workplace_ref, self.workplace_colour))
-        building_set = building_set.append(self._compile_building(self.senior_residence_ref, self.senior_residence_colour))
-        building_set = building_set.append(self._compile_building(self.home_ref, self.home_colour))
+        building_set = self._compile_building(self.school_ref, "school")
+        building_set = building_set.append(self._compile_building(self.hospital_ref, "hospital"))
+        building_set = building_set.append(self._compile_building(self.park_ref, "park"))
+        building_set = building_set.append(self._compile_building(self.store_ref, "store"))
+        building_set = building_set.append(self._compile_building(self.workplace_ref, "workplace"))
+        building_set = building_set.append(self._compile_building(self.senior_residence_ref, "senior_residence"))
+        building_set = building_set.append(self._compile_building(self.home_ref, "home"))
+        building_set = building_set.append(self._compile_building(self.misc_ref, "misc"))
         return building_set
 
     def draw(self):
         living = [human for human in self.humans.values() if not human.is_dead]
-        people_set = pd.DataFrame({'x': [human.lon for human in living],
-                           'y': [human.lat for human in living],
-                           'radius': self.person_radius,
-                           'colour': [self.child_colour if human.mobility_planner.follows_adult_schedule else self.person_colour for human in living]})
-        self.ax.clear()
+        people_set = pd.DataFrame({'x': [float(human.lon)+random.uniform(-1.0, 1.0) for human in living],
+                           'y': [float(human.lat)+random.uniform(-1.0, 1.0) for human in living],
+                           'radius': [self.person_radius for human in living],
+                           'name': [human.name for human in living],
+                           'type': ["child" if human.mobility_planner.follows_adult_schedule else "adult" for human in living]})
+
+
         joint_set = self.building_df.append(people_set)
-        self.ax.scatter(joint_set.x, joint_set.y, s=joint_set.radius, c=joint_set.colour)
-        #self.people_layer.remove()
-        #self.fig.add_subplot()
-        #for human in self.humans.values():
-        #    if not human.is_dead:
-        #        if human.mobility_planner.follows_adult_schedule:
-        #            self.people_layer.scatter(human.lon, human.lat, s=self.person_radius, c=self.child_colour)
-        #        else:
-        #            self.people_layer.scatter(human.lon, human.lat, s=self.person_radius, c=self.person_colour)
+        try:
+            self.fig = px.scatter(joint_set, x="x", y="y", size="radius", hover_name="name", color="type",
+                                  color_discrete_map=plot_pallet)
+        except ValueError:
+            self.fig = px.scatter(joint_set, x="x", y="y", size="radius", hover_name="name", color="type",
+                                  color_discrete_map=plot_pallet)
+
+        self.fig.update_layout(dragmode="pan")
+        #self.fig = px.scatter(joint_set, x="x", y="y", color="colour", size="radius", hover_name="name")
+        #self.ax.scatter(joint_set.x, joint_set.y, s=joint_set.radius, c=joint_set.colour)
+
+plot_pallet = {"hospital": "red",
+                "park": "yellow",
+                "store": "orange",
+                "school": "brown",
+                "workplace": "purple",
+                "senior_residence": "pink",
+                "home": "green",
+                "misc": "maroon",
+                "adult": "blue",
+                "child": "teal"}

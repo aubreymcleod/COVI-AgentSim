@@ -24,6 +24,8 @@ timesteps = {"1 second": 1.0,
              "12 hours": 43200.0,
              "24 hours": 86400.0}
 
+plotly_config = {"scrollZoom": True, 'modeBarButtonsToRemove': ['zoom'], 'dragmode': 'pan'}
+
 
 def get_sim(conf: DictConfig):
     sim = ControlledSimulation(conf)
@@ -73,7 +75,8 @@ def st_stderr(dst):
 # ===========
 # UI Elements
 # ===========
-def draw_sidebar():
+def draw_sidebar(visualization_area):
+    """
     st.sidebar.write(f'Simulation date')
     time = st.sidebar.empty()
     time.info(st.session_state["sim"].env.timestamp)
@@ -89,14 +92,19 @@ def draw_sidebar():
             msg = st.session_state["sim"].auto_step(timesteps[speed_selection])
             #toastr pop the msg
         time.info(st.session_state["sim"].env.timestamp)
+        st.session_state['renderer'].draw()
+        visualization_area.plotly_chart(st.session_state['renderer'].fig, use_container_width=True, config=plotly_config)
+    """
+    import InterSim.components.side_bar as sidebar
+    sidebar.draw(visualization_area)
 
 def main():
+    st.set_page_config(layout="wide")
     st.title("Interactive Covi19sim")
 
     visualization_area = st.empty()
     if 'renderer' in st.session_state:
-        st.session_state['renderer'].draw()
-        visualization_area.pyplot(st.session_state['renderer'].fig)
+        visualization_area.plotly_chart(st.session_state['renderer'].fig, use_container_width=True, config=plotly_config)
 
     if "log" not in st.session_state:
         st.session_state["log"] = ""
@@ -108,9 +116,9 @@ def main():
             st.session_state['sim'] = get_sim(get_config())
             if 'renderer' not in st.session_state:
                 st.session_state['renderer'] = visualizer(st.session_state['sim'])
-                visualization_area.pyplot(st.session_state['renderer'].fig)
+                visualization_area.plotly_chart(st.session_state['renderer'].fig, use_container_width=True, config=plotly_config)
 
-        draw_sidebar()
+        draw_sidebar(visualization_area)
         #st.write(st.session_state["log"])
 
 

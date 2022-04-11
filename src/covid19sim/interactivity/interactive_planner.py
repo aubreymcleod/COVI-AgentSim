@@ -5,6 +5,7 @@ import numbers
 
 from collections import deque
 import datetime
+import operator
 
 import numpy as np
 import warnings
@@ -218,34 +219,31 @@ class InteractivePlanner(MobilityPlanner):
         """
         Makes the assumption that all edits happen on one day; should be enforced by sleep being immutable.
         """
-        assert activities[0].start_time > self.env.timestamp, "Attempting to edit the past, but you can't change the past. You can't change the past..."
+        assert activities[0].start_time >= self.env.timestamp, "Attempting to edit the past, but you can't change the past. You can't change the past..."
         self._update_backing_schedule(activities)
-        # case: current day
-        if activities[0].start_time < self.sleep_schedule[self.schedule_day].end_time:
-            target_day = -1
-            schedule = self.schedule_for_day
-        # case: later
-        else:
-            last_sleep = None
-            for index, sleep in enumerate(self.sleep_schedule[self.schedule_day-1:]):
-                if last_sleep is None:
-                    last_sleep = sleep
-                if last_sleep.start_time < activities[0].start_time <= sleep.start_time :
-                    target_day = index
-                    schedule = self.full_schedule[target_day]
 
-        stripped_schedule = [a for a in schedule if not (a.start_time >= activities[0].start_time and a.start_time < activities[-1].end_time)]
-        # insert the activities into the stripped schedule.
-        for activity in activities:
-            for index, event in enumerate(stripped_schedule):
-                if activity.start_time >= event.end_time:
-                    stripped_schedule.insert(index, activity)
+        day_activity_falls_on = None
+        for index, sleep in enumerate(self.sleep_schedule):
+            if activities[0].start_time < sleep.end_time:
+                day_activity_falls_on = index - 1
+                break
 
-        # assign new schedule to correct day.
-        if target_day == -1:
-            self.schedule_for_day = stripped_schedule
+        if day_activity_falls_on == self.schedule_day:
+            stripped_schedule = [a for a in self.schedule_for_day if not (a.start_time >= activities[0].start_time and a.start_time < activities[-1].end_time)]
+            new_schedule = stripped_schedule + activities
+            new_schedule.sort(key=operator.attrgetter("start_time"))
+            self.schedule_for_day = deque(new_schedule)
         else:
-            self.full_schedule[target_day] = stripped_schedule
+            #current day is initial
+            if self.schedule_day == -1:
+                awaiting_index = day_activity_falls_on
+            #current day is after
+            else:
+                awaiting_index = day_activity_falls_on - self.schedule_day - 1
+            stripped_schedule = [a for a in self.full_schedule[awaiting_index] if not (a.start_time >= activities[0].start_time and a.start_time < activities[-1].end_time)]
+            new_schedule = stripped_schedule + activities
+            new_schedule.sort(key=operator.attrgetter("start_time"))
+            self.full_schedule[awaiting_index] = deque(new_schedule)
 
     def get_next_activity(self):
         """

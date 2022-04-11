@@ -5,6 +5,7 @@ import datetime
 import hydra
 import logging
 import os
+import operator
 import time
 import typing
 
@@ -21,6 +22,7 @@ from covid19sim.log.console_logger import ConsoleLogger
 from covid19sim.inference.server_utils import DataCollectionServer
 from covid19sim.utils.utils import dump_conf, dump_tracker_data, extract_tracker_data, parse_configuration, log
 
+from covid19sim.interactivity.agent_interface import PeopleManager
 
 def _get_intervention_string(conf):
     """
@@ -94,6 +96,9 @@ class ControlledSimulation:
         self.env = None
         self.city = None
         self.end_time = None
+        # useful for queries
+        self.people = None
+        self.locations = None
 
         self._build_config()
         self._build_env(n_people=n_people,
@@ -227,7 +232,7 @@ class ControlledSimulation:
         logging.root.setLevel(getattr(logging, self.config["LOGGING_LEVEL"].upper()))
 
         rng = np.random.RandomState(seed)
-        self.env = Env(start_time)
+        self.env = Env(start_time, interactive_flag=True)
         city_x_range = (0, 1000)
         city_y_range = (0, 1000)
         self.city = City(
@@ -256,6 +261,21 @@ class ControlledSimulation:
         # initiate humans
         for human in self.city.humans:
             self.env.process(human.run())
+
+        # load all locations
+        self.people = PeopleManager(self.city.humans)
+        all_places = [misc for misc in self.city.miscs] \
+                    + self.city.workplaces \
+                    + self.city.hospitals \
+                    + [hospital.icu for hospital in self.city.hospitals] \
+                    + self.city.schools \
+                    + self.city.parks \
+                    + self.city.stores \
+                    + self.city.senior_residences \
+                    + [home.social_common_room for home in self.city.senior_residences] \
+                    + [home for home in self.city.households]
+        all_places.sort(key=operator.attrgetter("name"))
+        self.locations = {place.name : place for place in all_places}
 
         self.env.process(console_logger.run(self.env, city=self.city))
         self.end_time = self.env.ts_initial + simulation_days * SECONDS_PER_DAY

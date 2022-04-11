@@ -1,10 +1,13 @@
 import datetime
+from datetime import time, timedelta
 
 from covid19sim.human import Human
 from covid19sim.interactivity.interactive_planner import RangeDict
 from covid19sim.locations.location import Location
 from covid19sim.native import Environment
 from covid19sim.utils.mobility_planner import Activity
+from covid19sim.utils.utils import _get_seconds_since_midnight
+from covid19sim.utils.constants import SECONDS_PER_HOUR, SECONDS_PER_MINUTE
 
 
 # I make 4 assumptions with this API:
@@ -12,6 +15,17 @@ from covid19sim.utils.mobility_planner import Activity
 # 2. You cannot change the present
 # 3. You cannot change sleep
 # 4. You cannot affect a child's schedule
+
+# =========
+# utilities
+# =========
+def time_from_seconds(seconds_from_midnight: int):
+    hours = int(seconds_from_midnight / SECONDS_PER_HOUR)
+    minutes = int((seconds_from_midnight-hours*SECONDS_PER_HOUR) / SECONDS_PER_MINUTE)
+    seconds = int(seconds_from_midnight % SECONDS_PER_MINUTE)
+    if hours > 23:
+        hours = 0
+    return time(hours, minutes, seconds)
 
 # =================
 # Assumption checks
@@ -37,7 +51,7 @@ def in_present(env: Environment, activity: Activity):
     Returns:
         False if this is not the current activity, True if it is the current activity
     """
-    return activity.start_time.timestamp() <= env.timestamp.timestamp() < activity.end_time.timestamp()
+    return activity.start_time.timestamp() < env.timestamp.timestamp() < activity.end_time.timestamp()
 
 
 def is_sleep(activity: Activity):
@@ -86,6 +100,15 @@ def can_edit(human: Human, activity: Activity):
 def get_schedule(human: Human):
     return human.mobility_planner.backing_schedule.get_range(human.env.initial_timestamp.timestamp())
 
+def get_current_day_schedule(human: Human):
+    return list(human.mobility_planner.schedule_for_day)
+
+def get_editable_range(human: Human, activity: Activity):
+    prior = human.mobility_planner.backing_schedule[(activity.start_time-timedelta(seconds=1.0)).timestamp()]
+    following = human.mobility_planner.backing_schedule[activity.end_time.timestamp()]
+    earliest_edit = prior.start_time if prior.name == "idle" else activity.start_time
+    latest_edit = following.end_time if following.name == "idle" else activity.end_time
+    return earliest_edit, latest_edit
 
 # =============
 # Minor changes
@@ -95,8 +118,8 @@ def update_location(human: Human, activity: Activity, location: Location):
     if not can_edit(human, activity):
         return False, "Could not edit activity."
     # check that the start and end times of the activity fall in times when the location is open
-    activity_date = activity.start_time.Date
-    if location.is_open(activity_date) and location.opening_time <= activity.start_time and activity.end_time <= location.closing_time:
+    activity_date = activity.start_time.date()
+    if location.is_open(activity_date) and location.opening_time <= _get_seconds_since_midnight(activity.start_time.time()) and _get_seconds_since_midnight(activity.end_time.time()) <= location.closing_time:
         activity.location = location
         return True, "Successfully updated location."
     else:
@@ -113,6 +136,16 @@ def cancel_activity(human: Human, activity: Activity):
 # ===============
 # Complex changes
 # ===============
+def adjust_times(human: Human, activity: Activity, start_time: datetime, end_time: datetime, bounds: (datetime, datetime)):
+    # case move start_time and maintain end_time
+    adjust_start_time(human, activity, new_start_time=bounds[0])
+    adjust_end_time(human, activity, new_end_time=bounds[1])
+    adjust_start_time(human, activity, new_start_time=start_time)
+    adjust_end_time(human, activity, new_end_time=end_time)
+    return True, "Successfully made edit"
+
+
+
 def adjust_start_time(human: Human, activity: Activity, new_start_time: datetime):
     if not can_edit(human, activity):
         return False, "Can not edit activity's start time"
@@ -134,7 +167,7 @@ def adjust_start_time(human: Human, activity: Activity, new_start_time: datetime
         else:
             edits.append(Activity(activity.start_time, (new_start_time-activity.start_time).total_seconds(), "idle", human.household, human))
 
-        new_activity = activity.clone()
+        new_activity = activity
         new_activity.adjust_time((new_start_time-activity.start_time).total_seconds())
         edits.append(new_activity)
         human.mobility_planner.update_schedule(edits)
@@ -152,11 +185,11 @@ def adjust_start_time(human: Human, activity: Activity, new_start_time: datetime
         if coverage[act_index-1].name == "idle" and coverage[act_index-1] != human.mobility_planner.current_activity:
             edits = []
             if coverage[act_index-1].start_time >= new_start_time:
-                activity = activity.clone()
-                activity.adjust_time((activity.start_time-coverage[act_index-1].start_time).total_seconds())
+                activity = activity
+                activity.adjust_time(-(activity.start_time-coverage[act_index-1].start_time).total_seconds())
                 edits.append(activity)
             else:
-                activity = activity.clone()
+                activity = activity
                 activity.adjust_time((activity.start_time-new_start_time).total_seconds())
                 edits.append(Activity(coverage[act_index-1].start_time, (coverage[act_index-1].end_time-new_start_time).total_seconds(), "idle", human.household, human))
                 edits.append(activity)
@@ -168,11 +201,11 @@ def adjust_start_time(human: Human, activity: Activity, new_start_time: datetime
 
 def adjust_end_time(human: Human, activity: Activity, new_end_time: datetime):
     if not can_edit(human, activity):
-        return False, "Can not edit activity's start time"
-    if new_end_time <= activity.end_time:
+        return False, "Can not edit activity's end time"
+    if new_end_time <= activity.start_time:
         return False, "Can not move end_time such that it predates the start_time."
     if new_end_time == activity.end_time:
-        return False, "start_time does not change. No edit made."
+        return False, "end_time does not change. No edit made."
 
     # case 1: end_time is pushed backwards.
     if activity.end_time < new_end_time:
@@ -182,14 +215,15 @@ def adjust_end_time(human: Human, activity: Activity, new_end_time: datetime):
 
         if following_activity.name == "idle":
             if new_end_time >= following_activity.end_time:
-                activity = activity.clone()
+                activity = activity
                 activity.adjust_time((following_activity.end_time-activity.end_time).total_seconds(), False)
                 edits.append(activity)
             else:
-                activity = activity.clone()
+                activity = activity
                 following_activity = following_activity.clone()
-                activity.adjust_time((new_end_time-activity.end_time).total_seconds, False)
-                following_activity.adjust_time((following_activity.start_time-new_end_time).total_seconds(), True)
+                delta = (new_end_time-activity.end_time).total_seconds()
+                activity.adjust_time(delta, False)
+                following_activity.adjust_time(delta, True)
                 edits.append(activity)
                 edits.append(following_activity)
             human.mobility_planner.update_schedule(edits)
@@ -202,14 +236,15 @@ def adjust_end_time(human: Human, activity: Activity, new_end_time: datetime):
         following_activity = human.mobility_planner.backing_schedule.get_range(activity.end_time.timestamp(), activity.end_time.timestamp()+1.0)[-1]
         edits = []
         if following_activity.name == "idle":
-            activity = activity.clone()
-            activity.adjust_time((new_end_time-activity.end_time).total_seconds(), False)
+            activity = activity
+            delta = (new_end_time-activity.end_time).total_seconds()
+            activity.adjust_time(delta, False)
             edits.append(activity)
             following_activity = following_activity.clone()
-            following_activity.adjust_time((following_activity.start_time-new_end_time).total_seconds, True)
+            following_activity.adjust_time(delta, True)
             edits.append(following_activity)
         else:
-            activity = activity.clone()
+            activity = activity
             following_activity = Activity(new_end_time, (activity.end_time-new_end_time).total_seconds(), "idle", human.household, human)
             activity.adjust_time((new_end_time-activity.end_time).total_seconds(), False)
             edits.append(activity)

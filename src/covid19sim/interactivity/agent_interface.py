@@ -13,5 +13,7 @@ import covid19sim.interactivity.interactive_planner as mp
 # all activities that the agent can perform
 ACTIVITIES = mp.ACTIVITIES
 
-
+class PeopleManager:
+    def __init__(self, humans):
+        self.collection = {human.name : human for human in humans}
 
