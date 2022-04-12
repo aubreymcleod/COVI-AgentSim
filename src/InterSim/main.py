@@ -28,7 +28,12 @@ plotly_config = {"scrollZoom": True, 'modeBarButtonsToRemove': ['zoom'], 'dragmo
 
 
 def get_sim(conf: DictConfig):
-    sim = ControlledSimulation(conf)
+    sim = ControlledSimulation(conf,
+                                n_people=conf["n_people"],
+                                init_fraction_sick=conf["init_fraction_sick"],
+                                simulation_days=conf["simulation_days"],
+                                out_chunk_size=conf["out_chunk_size"],
+                                seed=conf["seed"])
     return sim
 
 

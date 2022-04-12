@@ -44,7 +44,7 @@ def draw(plot_ref):
                     with st.spinner(text="Please wait..."):
                         msg = st.session_state["sim"].auto_step(timesteps[speed_selection])
                         # toastr pop the msg
-                    timestamp.info(st.session_state["sim"].env.timestamp)
+                    timestamp.info(f'{weekday_labels[st.session_state["sim"].env.timestamp.weekday()]}  \n {st.session_state["sim"].env.timestamp}')
                     st.session_state['renderer'].draw()
                     plot_ref.plotly_chart(st.session_state['renderer'].fig, use_container_width=True, config=plotly_config)
 
@@ -73,37 +73,41 @@ def agent_control_widget():
                                       options=schedule.keys(),
                                       index=0)  # and activity.start_time < datetime.fromtimestamp(st.session_state["sim"].env.now + timesteps["24 hours"])
 
-        #change location pane
-        current_location = schedule[schedule_selection].location.name if schedule[schedule_selection].location != None else None
-        if current_location in st.session_state["sim"].locations.keys():
-            index = list(st.session_state["sim"].locations.keys()).index(current_location)
+        if schedule_selection is not None:
+            #change location pane
+            current_location = schedule[schedule_selection].location.name if schedule_selection is not None and schedule[schedule_selection].location is not None else None
+            if current_location in st.session_state["sim"].locations.keys():
+                index = list(st.session_state["sim"].locations.keys()).index(current_location)
+            else:
+                index = 0
+
+            st.write(f'Location set {current_location if current_location is not None else "Nowhere"}')
+            location_selection = st.selectbox(label="Location",
+                                                options=st.session_state["sim"].locations.keys(),
+                                                index=index)
+            st.write(f'Open Between: {si.time_from_seconds(st.session_state["sim"].locations[location_selection].opening_time)}-{si.time_from_seconds(st.session_state["sim"].locations[location_selection].closing_time)}  \n '
+                     f'Open on: {[weekday_labels[wd] for wd in st.session_state["sim"].locations[location_selection].open_days]}')
+            if st.button("Update Location"):
+                status, message = si.update_location(aa, schedule[schedule_selection], st.session_state["sim"].locations[location_selection])
+                print(message)
+
+            #change timing pane
+            window_bounds = si.get_editable_range(aa, schedule[schedule_selection])
+            window = _get_time_range(window_bounds)
+            new_start, new_end = st.select_slider("Bounds",
+                                                    options=window,
+                                                    value=(schedule[schedule_selection].start_time.time(), schedule[schedule_selection].end_time.time()))
+            if st.button("Update Timing"):
+                status, message = si.adjust_times(aa, schedule[schedule_selection], window[new_start], window[new_end], (list(window.values())[0], list(window.values())[-1]))
+                print(message)
+
+            # delete event
+            if st.button("Delete Event"):
+                status, message = si.delete_activity(human=aa, activity=schedule[schedule_selection])
+                print(message)
+
         else:
-            index = 0
-
-        st.write(f'Location set {current_location if current_location is not None else "Nowhere"}')
-        location_selection = st.selectbox(label="Location",
-                                            options=st.session_state["sim"].locations.keys(),
-                                            index=index)
-        st.write(f'Open Between: {si.time_from_seconds(st.session_state["sim"].locations[location_selection].opening_time)}-{si.time_from_seconds(st.session_state["sim"].locations[location_selection].closing_time)}  \n '
-                 f'Open on: {[weekday_labels[wd] for wd in st.session_state["sim"].locations[location_selection].open_days]}')
-        if st.button("Update Location"):
-            status, message = si.update_location(aa, schedule[schedule_selection], st.session_state["sim"].locations[location_selection])
-            print(message)
-
-        #change timing pane
-        window_bounds = si.get_editable_range(aa, schedule[schedule_selection])
-        window = _get_time_range(window_bounds)
-        new_start, new_end = st.select_slider("Bounds",
-                                              options=window,
-                                              value=(schedule[schedule_selection].start_time.time(), schedule[schedule_selection].end_time.time()))
-        if st.button("Update Timing"):
-            status, message = si.adjust_times(aa, schedule[schedule_selection], window[new_start], window[new_end], (list(window.values())[0], list(window.values())[-1]))
-            print(message)
-
-        # delete event
-        if st.button("Delete Event"):
-            status, message = si.delete_activity(human=aa, activity=schedule[schedule_selection])
-            print(message)
+            st.info("No Activity available: schedule is completely empty")
 
         # insert new event
         st.header("Insert New Event")
