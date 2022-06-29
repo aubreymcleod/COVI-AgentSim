@@ -11,8 +11,8 @@ with open('requirements.txt', 'r') as f:
 
 setup(
     name                 = "covid19sim",
-    version              = "0.0.0.dev0",
-    url                  = "https://github.com/mila-iqia/COVI-AgentSim",
+    version              = "68c0b7ef4a3e41f41d20e6cd679b87fe3a38b6af",
+    url                  = "https://github.com/aubreymcleod/COVI-AgentSim",
     description          = "Simulation of COVID-19 spread.",
     long_description     = "Simulation of COVID-19 spread.",
     classifiers          = [
